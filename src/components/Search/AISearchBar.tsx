@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Sparkles, MapPin, Home, DollarSign, Bed, Square, Mic, X, AlertCircle } from 'lucide-react';
+import { Search, Sparkles, MapPin, Home, DollarSign, Bed, Square, Mic, X, AlertCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { processNaturalLanguageSearch, isOpenAIConfigured, generateSearchSuggestions } from '../../services/openai';
 
 interface AISearchBarProps {
   onSearch: (query: string) => void;
@@ -32,86 +33,28 @@ export const AISearchBar: React.FC<AISearchBarProps> = ({ onSearch, onFiltersExt
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Mock AI processing function with error handling
-  const processNaturalLanguage = (searchQuery: string) => {
-    try {
-      if (!searchQuery?.trim()) {
-        throw new Error('Search query cannot be empty');
-      }
-
-      const filters: any = {};
-      const lowerQuery = searchQuery.toLowerCase().trim();
-
-      // Extract location with validation
-      const addisAreas = ['bole', 'cmc', 'kazanchis', 'old airport', 'meskel square', 'merkato', 'piassa', 'addis ketema', 'kirkos', 'lideta'];
-      const foundArea = addisAreas.find(area => lowerQuery.includes(area));
-      if (foundArea) {
-        filters.location = foundArea;
-      }
-
-      // Extract bedrooms with validation
-      const bedroomMatch = lowerQuery.match(/(\d+)\s*(bedroom|bed|br)/);
-      if (bedroomMatch) {
-        const bedrooms = parseInt(bedroomMatch[1]);
-        if (bedrooms > 0 && bedrooms <= 10) {
-          filters.bedrooms = bedrooms;
+  // Generate suggestions when query changes
+  useEffect(() => {
+    const generateSuggestions = async () => {
+      if (query.length > 2) {
+        try {
+          const newSuggestions = await generateSearchSuggestions(query);
+          setSuggestions(newSuggestions);
+        } catch (err) {
+          console.error('Error generating suggestions:', err);
+          setSuggestions(SEARCH_EXAMPLES);
         }
+      } else {
+        setSuggestions(SEARCH_EXAMPLES);
       }
+    };
 
-      // Extract price with validation
-      const priceMatch = lowerQuery.match(/under\s*(\d+)[,\s]*(\d+)?\s*(etb|birr)?/);
-      if (priceMatch) {
-        const price = priceMatch[2] ? 
-          parseInt(priceMatch[1] + priceMatch[2]) : 
-          parseInt(priceMatch[1]) * (priceMatch[1].length <= 2 ? 1000 : 1);
-        
-        if (price > 0 && price <= 1000000) { // Reasonable price range
-          filters.priceMax = price;
-        }
-      }
-
-      // Extract property type
-      if (lowerQuery.includes('office') || lowerQuery.includes('business') || lowerQuery.includes('commercial')) {
-        filters.type = 'business';
-      } else if (lowerQuery.includes('apartment') || lowerQuery.includes('house') || lowerQuery.includes('residential') || lowerQuery.includes('studio')) {
-        filters.type = 'residential';
-      }
-
-      // Extract features
-      const features = [];
-      const featureMap = {
-        'furnished': 'Furnished',
-        'parking': 'Parking',
-        'garden': 'Garden',
-        'wifi': 'Internet',
-        'internet': 'Internet',
-        'security': 'Security',
-        'gym': 'Gym',
-        'pool': 'Swimming Pool',
-        'balcony': 'Balcony',
-        'elevator': 'Elevator',
-        'conference': 'Conference Room',
-        'loading': 'Loading Dock'
-      };
-
-      Object.entries(featureMap).forEach(([key, value]) => {
-        if (lowerQuery.includes(key) && !features.includes(value)) {
-          features.push(value);
-        }
-      });
-
-      if (features.length > 0) {
-        filters.features = features;
-      }
-
-      return filters;
-    } catch (err) {
-      console.error('Error processing natural language:', err);
-      throw new Error('Failed to process search query');
-    }
-  };
+    const debounceTimer = setTimeout(generateSuggestions, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [query]);
 
   const handleSearch = async (searchQuery: string = query) => {
     try {
@@ -124,17 +67,27 @@ export const AISearchBar: React.FC<AISearchBarProps> = ({ onSearch, onFiltersExt
 
       setIsLoading(true);
       
-      // Simulate AI processing delay
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const extractedFilters = processNaturalLanguage(searchQuery);
+      // Process the search query with AI
+      const aiResponse = await processNaturalLanguageSearch(searchQuery);
       
       setShowSuggestions(false);
       
-      onSearch(searchQuery);
-      onFiltersExtracted?.(extractedFilters);
+      // Show confidence indicator
+      if (isOpenAIConfigured()) {
+        if (aiResponse.confidence > 0.8) {
+          toast.success('🎯 High confidence search match!');
+        } else if (aiResponse.confidence > 0.6) {
+          toast.success('✨ Good search match found');
+        } else {
+          toast.success('🔍 Search processed');
+        }
+      } else {
+        toast.success('🔍 Search processed (local mode)');
+      }
       
-      toast.success('Search completed successfully');
+      onSearch(searchQuery);
+      onFiltersExtracted?.(aiResponse.filters);
+      
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Search failed';
       setError(errorMessage);
@@ -245,6 +198,20 @@ export const AISearchBar: React.FC<AISearchBarProps> = ({ onSearch, onFiltersExt
 
   return (
     <div className="relative max-w-4xl mx-auto">
+      {/* AI Status Indicator */}
+      {!isOpenAIConfigured() && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 flex items-center space-x-2"
+        >
+          <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+          <span className="text-sm text-amber-800 dark:text-amber-300">
+            Running in local mode. Add OpenAI API key for enhanced AI search.
+          </span>
+        </motion.div>
+      )}
+
       {/* Main Search Bar */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -258,7 +225,7 @@ export const AISearchBar: React.FC<AISearchBarProps> = ({ onSearch, onFiltersExt
             <div className="flex items-center">
               <div className="flex items-center pl-6 pr-4 py-1">
                 <div className="flex items-center space-x-2">
-                  <Sparkles className="w-5 h-5 text-rose-500" />
+                  <Sparkles className={`w-5 h-5 ${isOpenAIConfigured() ? 'text-emerald-500' : 'text-amber-500'}`} />
                   <Search className="w-5 h-5 text-gray-400" />
                 </div>
               </div>
@@ -272,7 +239,10 @@ export const AISearchBar: React.FC<AISearchBarProps> = ({ onSearch, onFiltersExt
                   setError(null);
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Try: '2 bedroom apartment in Bole under 25,000 ETB' or 'office space near Meskel Square'"
+                placeholder={isOpenAIConfigured() 
+                  ? "Try: '2 bedroom apartment in Bole under 25,000 ETB' or 'office space near Meskel Square'"
+                  : "Search properties in Addis Ababa..."
+                }
                 className="flex-1 py-6 text-lg bg-transparent border-none outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                 disabled={isLoading}
                 maxLength={200}
@@ -318,8 +288,8 @@ export const AISearchBar: React.FC<AISearchBarProps> = ({ onSearch, onFiltersExt
                 >
                   {isLoading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span className="font-semibold">Searching...</span>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="font-semibold">Processing...</span>
                     </>
                   ) : (
                     <>
@@ -403,14 +373,14 @@ export const AISearchBar: React.FC<AISearchBarProps> = ({ onSearch, onFiltersExt
           >
             <div className="p-6">
               <div className="flex items-center space-x-2 mb-4">
-                <Sparkles className="w-5 h-5 text-rose-500" />
+                <Sparkles className={`w-5 h-5 ${isOpenAIConfigured() ? 'text-emerald-500' : 'text-amber-500'}`} />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Try these AI search examples:
+                  {isOpenAIConfigured() ? 'AI-Powered Search Examples:' : 'Search Examples:'}
                 </h3>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {SEARCH_EXAMPLES.map((example, index) => (
+                {suggestions.map((example, index) => (
                   <motion.button
                     key={index}
                     onClick={() => handleExampleClick(example)}
@@ -435,7 +405,11 @@ export const AISearchBar: React.FC<AISearchBarProps> = ({ onSearch, onFiltersExt
 
               <div className="mt-6 pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                  💡 <strong>Pro tip:</strong> Be as specific as possible. Include location, price range, bedrooms, and features for best results.
+                  {isOpenAIConfigured() ? (
+                    <>🤖 <strong>AI-Powered:</strong> Natural language search with intelligent filter extraction</>
+                  ) : (
+                    <>💡 <strong>Pro tip:</strong> Be as specific as possible. Include location, price range, bedrooms, and features for best results.</>
+                  )}
                 </p>
               </div>
             </div>

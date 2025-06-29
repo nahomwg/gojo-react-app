@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SearchFilters } from '../components/Search/SearchFilters';
 import { PropertyGrid } from '../components/Properties/PropertyGrid';
+import { AISearchBar } from '../components/Search/AISearchBar';
 import { useProperties } from '../hooks/useProperties';
 import { PropertyFilters } from '../types';
 import { Hero } from '../components/Home/Hero';
@@ -11,6 +12,7 @@ import { Sparkles, TrendingUp } from 'lucide-react';
 export const HomePage: React.FC = () => {
   const { isHost } = useAuth();
   const [filters, setFilters] = useState<PropertyFilters>({});
+  const [searchQuery, setSearchQuery] = useState('');
   const { properties, loading, error } = useProperties(filters);
 
   // Redirect hosts to dashboard
@@ -21,29 +23,13 @@ export const HomePage: React.FC = () => {
   }, [isHost]);
 
   const handleSearch = (query: string) => {
-    // This would integrate with OpenAI API for natural language search
-    console.log('AI Search query:', query);
-    
-    // For now, we'll use basic keyword matching for Addis Ababa areas
-    const addisAreas = ['bole', 'cmc', 'kazanchis', 'old airport', 'meskel square', 'merkato', 'piassa'];
-    const foundArea = addisAreas.find(area => query.toLowerCase().includes(area));
-    
-    if (foundArea) {
-      setFilters(prev => ({ ...prev, location: foundArea }));
-    }
-    
-    // Extract bedroom count
-    const bedroomMatch = query.match(/(\d+)\s*bedroom/i);
-    if (bedroomMatch) {
-      setFilters(prev => ({ ...prev, bedrooms: parseInt(bedroomMatch[1]) }));
-    }
-    
-    // Extract property type
-    if (query.toLowerCase().includes('office') || query.toLowerCase().includes('business') || query.toLowerCase().includes('commercial')) {
-      setFilters(prev => ({ ...prev, type: 'business' }));
-    } else if (query.toLowerCase().includes('apartment') || query.toLowerCase().includes('house') || query.toLowerCase().includes('residential')) {
-      setFilters(prev => ({ ...prev, type: 'residential' }));
-    }
+    setSearchQuery(query);
+    console.log('Search query:', query);
+  };
+
+  const handleFiltersExtracted = (extractedFilters: PropertyFilters) => {
+    console.log('Extracted filters:', extractedFilters);
+    setFilters(prev => ({ ...prev, ...extractedFilters }));
   };
 
   const handleFavorite = (propertyId: string) => {
@@ -63,6 +49,36 @@ export const HomePage: React.FC = () => {
       className="space-y-8"
     >
       <Hero />
+      
+      {/* AI Search Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        className="space-y-6"
+      >
+        <div className="text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="flex items-center justify-center space-x-3 mb-4"
+          >
+            <Sparkles className="w-8 h-8 text-rose-500" />
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+              AI-Powered Property Search
+            </h2>
+          </motion.div>
+          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+            Just describe what you're looking for in natural language, and our AI will find the perfect properties for you
+          </p>
+        </div>
+
+        <AISearchBar
+          onSearch={handleSearch}
+          onFiltersExtracted={handleFiltersExtracted}
+        />
+      </motion.div>
       
       <SearchFilters
         filters={filters}
@@ -91,7 +107,7 @@ export const HomePage: React.FC = () => {
               <span>Available Properties</span>
             </h2>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Discover your next home in Addis Ababa
+              {searchQuery ? `Results for "${searchQuery}"` : 'Discover your next home in Addis Ababa'}
             </p>
           </motion.div>
           
@@ -114,6 +130,7 @@ export const HomePage: React.FC = () => {
           loading={loading}
           onFavorite={handleFavorite}
           favoritedProperties={[]} // Would come from user preferences
+          showLocation={true} // Show coordinates for development
         />
       </div>
     </motion.div>

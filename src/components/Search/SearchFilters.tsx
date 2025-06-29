@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Search, Filter, MapPin, DollarSign, Bed, Square, Sparkles } from 'lucide-react';
 import { PropertyFilters } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { processNaturalLanguageSearch, isOpenAIConfigured } from '../../services/openai';
 
 interface SearchFiltersProps {
   filters: PropertyFilters;
@@ -26,6 +27,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showExamples, setShowExamples] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleFilterChange = (key: keyof PropertyFilters, value: any) => {
     onFiltersChange({
@@ -34,16 +36,46 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
     });
   };
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  const handleSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSearch?.(searchQuery);
+    if (!searchQuery.trim()) return;
+
+    setIsProcessing(true);
     setShowExamples(false);
+
+    try {
+      // Process with AI if available
+      const aiResponse = await processNaturalLanguageSearch(searchQuery);
+      
+      // Apply extracted filters
+      onFiltersChange(aiResponse.filters);
+      
+      // Call the search callback
+      onSearch?.(searchQuery);
+    } catch (error) {
+      console.error('Search processing error:', error);
+      // Fallback to basic search
+      onSearch?.(searchQuery);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleExampleClick = (example: string) => {
+  const handleExampleClick = async (example: string) => {
     setSearchQuery(example);
     setShowExamples(false);
-    onSearch?.(example);
+    
+    setIsProcessing(true);
+    try {
+      const aiResponse = await processNaturalLanguageSearch(example);
+      onFiltersChange(aiResponse.filters);
+      onSearch?.(example);
+    } catch (error) {
+      console.error('Example processing error:', error);
+      onSearch?.(example);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const clearFilters = () => {
@@ -59,7 +91,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
       <form onSubmit={handleSearchSubmit} className="mb-6">
         <div className="relative">
           <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
-            <Sparkles className="w-5 h-5 text-primary-500" />
+            <Sparkles className={`w-5 h-5 ${isOpenAIConfigured() ? 'text-emerald-500' : 'text-amber-500'}`} />
             <Search className="w-5 h-5 text-gray-400 dark:text-gray-500" />
           </div>
           <input
@@ -67,19 +99,41 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => setShowExamples(true)}
-            placeholder="Try: '2 bedroom apartment in Bole with parking' or 'office space near Meskel Square'"
+            placeholder={isOpenAIConfigured() 
+              ? "Try: '2 bedroom apartment in Bole with parking' or 'office space near Meskel Square'"
+              : "Search properties in Addis Ababa..."
+            }
             className="w-full pl-16 pr-20 py-4 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-lg"
+            disabled={isProcessing}
           />
           <motion.button
             type="submit"
+            disabled={isProcessing || !searchQuery.trim()}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Sparkles className="w-4 h-4" />
-            <span>Search</span>
+            {isProcessing ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Search</span>
+              </>
+            )}
           </motion.button>
         </div>
+
+        {/* AI Status Indicator */}
+        {!isOpenAIConfigured() && (
+          <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center space-x-1">
+            <Sparkles className="w-3 h-3" />
+            <span>Local search mode - Add OpenAI API key for enhanced AI features</span>
+          </div>
+        )}
 
         {/* AI Search Examples */}
         <AnimatePresence>
@@ -91,9 +145,9 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
               className="absolute z-10 mt-2 w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4"
             >
               <div className="flex items-center space-x-2 mb-3">
-                <Sparkles className="w-4 h-4 text-primary-500" />
+                <Sparkles className={`w-4 h-4 ${isOpenAIConfigured() ? 'text-emerald-500' : 'text-amber-500'}`} />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Try these AI search examples:
+                  {isOpenAIConfigured() ? 'AI search examples:' : 'Search examples:'}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -102,7 +156,8 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                     key={index}
                     whileHover={{ scale: 1.02 }}
                     onClick={() => handleExampleClick(example)}
-                    className="text-left p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                    disabled={isProcessing}
+                    className="text-left p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-50"
                   >
                     "{example}"
                   </motion.button>
