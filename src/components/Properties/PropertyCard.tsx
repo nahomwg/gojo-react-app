@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Bed, Square, Star, Heart, Wifi, Car, Shield, Eye, Calendar, Navigation } from 'lucide-react';
+import { MapPin, Bed, Square, Star, Heart, Wifi, Car, Shield, Eye, Calendar, Navigation, Phone, Mail } from 'lucide-react';
 import { Property } from '../../types';
 import { motion } from 'framer-motion';
 
@@ -8,13 +8,15 @@ interface PropertyCardProps {
   onFavorite?: (id: string) => void;
   isFavorited?: boolean;
   showLocation?: boolean;
+  showContactInfo?: boolean;
 }
 
 export const PropertyCard: React.FC<PropertyCardProps> = ({ 
   property, 
   onFavorite, 
   isFavorited = false,
-  showLocation = false
+  showLocation = false,
+  showContactInfo = false
 }) => {
   const handleFavorite = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -29,6 +31,17 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
     // Open Google Maps with the property location
     const mapsUrl = `https://www.google.com/maps?q=${property.latitude},${property.longitude}`;
     window.open(mapsUrl, '_blank');
+  };
+
+  const handleContact = (e: React.MouseEvent, type: 'phone' | 'email') => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (type === 'phone' && property.host?.phone) {
+      window.open(`tel:${property.host.phone}`, '_self');
+    } else if (type === 'email' && property.host?.email) {
+      window.open(`mailto:${property.host.email}?subject=Inquiry about ${property.title}`, '_self');
+    }
   };
 
   const formatPrice = (price: number) => {
@@ -240,13 +253,42 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
             </div>
           </div>
           
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-sm font-bold rounded-xl hover:from-rose-600 hover:to-pink-700 transition-all shadow-lg shadow-rose-500/25"
-          >
-            View Details
-          </motion.button>
+          <div className="flex items-center space-x-2">
+            {/* Contact Buttons */}
+            {showContactInfo && property.host && (
+              <>
+                {property.host.phone && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={(e) => handleContact(e, 'phone')}
+                    className="p-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                    title="Call host"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </motion.button>
+                )}
+                
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => handleContact(e, 'email')}
+                  className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                  title="Email host"
+                >
+                  <Mail className="w-4 h-4" />
+                </motion.button>
+              </>
+            )}
+            
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-sm font-bold rounded-xl hover:from-rose-600 hover:to-pink-700 transition-all shadow-lg shadow-rose-500/25"
+            >
+              View Details
+            </motion.button>
+          </div>
         </div>
       </div>
     </motion.div>

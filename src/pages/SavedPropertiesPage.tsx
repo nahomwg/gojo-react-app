@@ -2,16 +2,17 @@ import React, { useState } from 'react';
 import { PropertyGrid } from '../components/Properties/PropertyGrid';
 import { useSearchPreferences } from '../hooks/useSearchPreferences';
 import { useProperties } from '../hooks/useProperties';
+import { useFavorites } from '../hooks/useFavorites';
 import { useAuth } from '../contexts/AuthContext';
-import { Heart, Bell, Trash2, Plus, Star, TrendingUp, MapPin, Users, Sparkles, ArrowRight, Lock } from 'lucide-react';
+import { Heart, Bell, Trash2, Plus, Star, TrendingUp, MapPin, Users, Sparkles, ArrowRight, Lock, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
 export const SavedPropertiesPage: React.FC = () => {
   const { user } = useAuth();
   const { preferences, loading: preferencesLoading, deletePreference } = useSearchPreferences();
-  const { properties, loading: propertiesLoading } = useProperties(); // Get all properties for non-logged users
-  const [savedProperties] = useState([]); // This would be implemented with actual saved properties
+  const { properties, loading: propertiesLoading } = useProperties();
+  const { favorites, toggleFavorite, isFavorited } = useFavorites();
   const [activeTab, setActiveTab] = useState<'featured' | 'trending' | 'new'>('featured');
 
   const handleDeletePreference = async (id: string) => {
@@ -23,6 +24,11 @@ export const SavedPropertiesPage: React.FC = () => {
       console.error('Error deleting preference:', error);
     }
   };
+
+  // Get favorited properties
+  const favoritedProperties = properties.filter(property => 
+    favorites.includes(property.id)
+  );
 
   // Mock featured properties (in real app, these would be curated)
   const featuredProperties = properties.slice(0, 6);
@@ -375,11 +381,11 @@ export const SavedPropertiesPage: React.FC = () => {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Favorite Properties</h2>
           </div>
           <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-            <span>{savedProperties.length} saved</span>
+            <span>{favoritedProperties.length} saved</span>
           </div>
         </div>
 
-        {savedProperties.length === 0 ? (
+        {favoritedProperties.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -402,9 +408,9 @@ export const SavedPropertiesPage: React.FC = () => {
           </div>
         ) : (
           <PropertyGrid
-            properties={savedProperties}
-            onFavorite={(id) => console.log('Remove from favorites:', id)}
-            favoritedProperties={savedProperties.map(p => p.id)}
+            properties={favoritedProperties}
+            onFavorite={toggleFavorite}
+            favoritedProperties={favorites}
           />
         )}
       </div>
