@@ -7,36 +7,80 @@
     <title>Gojo - Property Rental Platform</title>
     <meta name="description" content="Find your perfect rental property in Ethiopia with Gojo. Browse residential and business properties from trusted hosts." />
     
+    <!-- Security headers -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://api.openai.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: blob: https: http:;
+      connect-src 'self' https: wss: ws:;
+      frame-src 'self' https:;
+      object-src 'none';
+      base-uri 'self';
+    ">
+    
     <!-- Preconnect to external domains for better performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://maps.googleapis.com">
     <link rel="preconnect" href="https://api.openai.com">
     
-    <!-- Google Maps API -->
-    <script type="module">
-      // Load Google Maps API if key is available
-      if (window.location.hostname !== 'localhost' || localStorage.getItem('VITE_GOOGLE_MAPS_API_KEY')) {
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}&libraries=places&callback=initMap`;
-        script.async = true;
-        script.defer = true;
-        
-        // Global callback for when Google Maps loads
-        window.initMap = function() {
+    <!-- Fallback for blocked resources -->
+    <script>
+      // Global error handler for blocked resources
+      window.addEventListener('error', function(e) {
+        if (e.message && e.message.includes('ERR_BLOCKED_BY_CLIENT')) {
+          console.warn('Resource blocked by client (likely ad blocker):', e.filename);
+          // Don't show error to user for blocked resources
+          e.preventDefault();
+          return false;
+        }
+      });
+      
+      // Handle unhandled promise rejections
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && e.reason.message && e.reason.message.includes('ERR_BLOCKED_BY_CLIENT')) {
+          console.warn('Promise rejection due to blocked resource');
+          e.preventDefault();
+          return false;
+        }
+      });
+    </script>
+    
+    <!-- Google Maps API with error handling -->
+    <script>
+      // Initialize Google Maps with fallback
+      window.initGoogleMaps = function() {
+        try {
           console.log('Google Maps API loaded successfully');
           window.googleMapsLoaded = true;
-          
-          // Dispatch custom event to notify components
           window.dispatchEvent(new CustomEvent('googleMapsLoaded'));
-        };
-        
-        script.onerror = function() {
-          console.warn('Failed to load Google Maps API');
+        } catch (error) {
+          console.warn('Google Maps initialization error:', error);
           window.googleMapsError = true;
-        };
-        
-        document.head.appendChild(script);
-      }
+        }
+      };
+      
+      // Load Google Maps API if key is available and not blocked
+      (function() {
+        const apiKey = '%VITE_GOOGLE_MAPS_API_KEY%';
+        if (apiKey && apiKey !== 'your_google_maps_api_key' && !apiKey.includes('%')) {
+          const script = document.createElement('script');
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMaps`;
+          script.async = true;
+          script.defer = true;
+          
+          script.onerror = function() {
+            console.warn('Failed to load Google Maps API - possibly blocked');
+            window.googleMapsError = true;
+          };
+          
+          document.head.appendChild(script);
+        } else {
+          console.info('Google Maps API key not configured');
+          window.googleMapsError = true;
+        }
+      })();
     </script>
   </head>
   <body>

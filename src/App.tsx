@@ -10,6 +10,8 @@ import { SignupPage } from './pages/SignupPage';
 import { HostDashboard } from './pages/HostDashboard';
 import { SavedPropertiesPage } from './pages/SavedPropertiesPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { NetworkStatus } from './components/common/NetworkStatus';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode; requireHost?: boolean }> = ({ 
@@ -133,6 +135,9 @@ function AppRoutes() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
+      
+      {/* Global Components */}
+      <NetworkStatus />
       <Toaster 
         position="top-right"
         toastOptions={{
@@ -142,6 +147,12 @@ function AppRoutes() {
             background: 'var(--toast-bg)',
             color: 'var(--toast-color)',
           },
+          error: {
+            duration: 6000,
+          },
+          success: {
+            duration: 3000,
+          }
         }}
       />
     </Router>
@@ -150,11 +161,13 @@ function AppRoutes() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

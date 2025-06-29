@@ -9,7 +9,18 @@ if ((!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'https://placeholder.su
   console.warn('Supabase environment variables not configured. Some features may not work.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'gojo-rental-platform'
+    }
+  }
+});
 
 // Auth helpers with error handling
 export const signInWithGoogle = async () => {
@@ -17,7 +28,11 @@ export const signInWithGoogle = async () => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        }
       }
     });
     return { data, error };
@@ -95,8 +110,8 @@ export const signOut = async () => {
   }
 };
 
-// Storage helpers with error handling
-export const uploadPropertyImage = async (file: File, propertyId: string) => {
+// Storage helpers with error handling and retry logic
+export const uploadPropertyImage = async (file: File, propertyId: string, retries = 3) => {
   try {
     if (!file) {
       throw new Error('No file provided');
@@ -124,22 +139,36 @@ export const uploadPropertyImage = async (file: File, propertyId: string) => {
 
     const fileName = `${propertyId}/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
     
-    const { data, error } = await supabase.storage
-      .from('property-images')
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
-    
-    if (error) {
-      throw new Error(`Upload failed: ${error.message}`);
+    // Retry logic for upload
+    let lastError;
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const { data, error } = await supabase.storage
+          .from('property-images')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+        
+        if (error) {
+          throw new Error(`Upload failed: ${error.message}`);
+        }
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('property-images')
+          .getPublicUrl(fileName);
+        
+        return { data: publicUrl, error: null };
+      } catch (err) {
+        lastError = err;
+        if (attempt < retries - 1) {
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
+      }
     }
     
-    const { data: { publicUrl } } = supabase.storage
-      .from('property-images')
-      .getPublicUrl(fileName);
-    
-    return { data: publicUrl, error: null };
+    throw lastError;
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Failed to upload image';
     console.error('Image upload error:', err);
@@ -147,7 +176,7 @@ export const uploadPropertyImage = async (file: File, propertyId: string) => {
   }
 };
 
-export const uploadProfileImage = async (file: File, userId: string) => {
+export const uploadProfileImage = async (file: File, userId: string, retries = 3) => {
   try {
     if (!file) {
       throw new Error('No file provided');
@@ -175,22 +204,36 @@ export const uploadProfileImage = async (file: File, userId: string) => {
 
     const fileName = `${userId}/profile.${fileExt}`;
     
-    const { data, error } = await supabase.storage
-      .from('profile-images')
-      .upload(fileName, file, { 
-        upsert: true,
-        cacheControl: '3600'
-      });
-    
-    if (error) {
-      throw new Error(`Upload failed: ${error.message}`);
+    // Retry logic for upload
+    let lastError;
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const { data, error } = await supabase.storage
+          .from('profile-images')
+          .upload(fileName, file, { 
+            upsert: true,
+            cacheControl: '3600'
+          });
+        
+        if (error) {
+          throw new Error(`Upload failed: ${error.message}`);
+        }
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('profile-images')
+          .getPublicUrl(fileName);
+        
+        return { data: publicUrl, error: null };
+      } catch (err) {
+        lastError = err;
+        if (attempt < retries - 1) {
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
+      }
     }
     
-    const { data: { publicUrl } } = supabase.storage
-      .from('profile-images')
-      .getPublicUrl(fileName);
-    
-    return { data: publicUrl, error: null };
+    throw lastError;
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Failed to upload profile image';
     console.error('Profile image upload error:', err);
@@ -207,4 +250,37 @@ export const checkSupabaseConnection = async () => {
     console.error('Supabase connection check failed:', err);
     return { connected: false, error: err };
   }
+};
+
+// Network status helper
+export const isOnline = (): boolean => {
+  return navigator.onLine;
+};
+
+// Retry helper for network requests
+export const retryRequest = async <T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 1000
+): Promise<T> => {
+  let lastError;
+  
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      
+      // Don't retry if it's a client error (4xx)
+      if (error instanceof Error && error.message.includes('4')) {
+        throw error;
+      }
+      
+      if (attempt < retries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay * (attempt + 1)));
+      }
+    }
+  }
+  
+  throw lastError;
 };

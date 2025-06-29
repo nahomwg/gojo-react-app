@@ -3,50 +3,101 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-// Global error handler to suppress browser extension errors
+// Enhanced global error handler
 window.addEventListener('error', (event) => {
-  // Suppress browser extension errors
-  if (
-    event.message?.includes('Extension context invalidated') ||
-    event.message?.includes('message channel closed') ||
-    event.message?.includes('listener indicated an asynchronous response') ||
+  // Suppress browser extension and blocked resource errors
+  const suppressedErrors = [
+    'Extension context invalidated',
+    'message channel closed',
+    'listener indicated an asynchronous response',
+    'runtime.lastError',
+    'ERR_BLOCKED_BY_CLIENT',
+    'Failed to load resource',
+    'Non-Error promise rejection captured'
+  ];
+
+  const shouldSuppress = suppressedErrors.some(error => 
+    event.message?.includes(error) || 
     event.filename?.includes('extension') ||
-    event.message?.includes('runtime.lastError') ||
-    event.message?.includes('A listener indicated an asynchronous response by returning true')
-  ) {
+    event.error?.message?.includes(error)
+  );
+
+  if (shouldSuppress) {
     event.preventDefault();
     return false;
   }
 });
 
-// Handle unhandled promise rejections
+// Enhanced promise rejection handler
 window.addEventListener('unhandledrejection', (event) => {
-  // Suppress browser extension promise rejections
-  if (
-    event.reason?.message?.includes('Extension context invalidated') ||
-    event.reason?.message?.includes('message channel closed') ||
-    event.reason?.message?.includes('listener indicated an asynchronous response') ||
-    event.reason?.message?.includes('runtime.lastError')
-  ) {
+  const suppressedErrors = [
+    'Extension context invalidated',
+    'message channel closed',
+    'listener indicated an asynchronous response',
+    'runtime.lastError',
+    'ERR_BLOCKED_BY_CLIENT',
+    'Failed to load resource'
+  ];
+
+  const shouldSuppress = suppressedErrors.some(error => 
+    event.reason?.message?.includes(error) ||
+    String(event.reason).includes(error)
+  );
+
+  if (shouldSuppress) {
     event.preventDefault();
     return false;
   }
 });
 
-// Suppress console errors from browser extensions
+// Enhanced console error suppression
 const originalConsoleError = console.error;
 console.error = (...args) => {
   const message = args.join(' ');
-  if (
-    message.includes('Extension context invalidated') ||
-    message.includes('message channel closed') ||
-    message.includes('listener indicated an asynchronous response') ||
-    message.includes('runtime.lastError')
-  ) {
-    return; // Don't log extension errors
+  const suppressedPatterns = [
+    'Extension context invalidated',
+    'message channel closed',
+    'listener indicated an asynchronous response',
+    'runtime.lastError',
+    'ERR_BLOCKED_BY_CLIENT'
+  ];
+
+  const shouldSuppress = suppressedPatterns.some(pattern => 
+    message.includes(pattern)
+  );
+
+  if (!shouldSuppress) {
+    originalConsoleError.apply(console, args);
   }
-  originalConsoleError.apply(console, args);
 };
+
+// Network status monitoring
+let isOnline = navigator.onLine;
+window.addEventListener('online', () => {
+  isOnline = true;
+  console.log('Network: Back online');
+});
+
+window.addEventListener('offline', () => {
+  isOnline = false;
+  console.log('Network: Gone offline');
+});
+
+// Performance monitoring
+if ('performance' in window) {
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      const perfData = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      if (perfData) {
+        console.log('Performance metrics:', {
+          loadTime: perfData.loadEventEnd - perfData.loadEventStart,
+          domContentLoaded: perfData.domContentLoadedEventEnd - perfData.domContentLoadedEventStart,
+          networkTime: perfData.responseEnd - perfData.requestStart
+        });
+      }
+    }, 0);
+  });
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
