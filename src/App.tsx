@@ -56,13 +56,34 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+// Smart Home Route - redirects based on user mode
+const SmartHomeRoute: React.FC = () => {
+  const { user, isHost, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  // If user is logged in and is a host, redirect to dashboard
+  if (user && isHost) {
+    return <Navigate to="/host" replace />;
+  }
+
+  // Otherwise show the regular home page
+  return <HomePage />;
+};
+
 function AppRoutes() {
   return (
     <Router>
       <Layout>
         <Routes>
-          {/* Home Route - Always shows HomePage */}
-          <Route path="/" element={<HomePage />} />
+          {/* Smart Home Route */}
+          <Route path="/" element={<SmartHomeRoute />} />
           
           {/* Public Routes */}
           <Route 

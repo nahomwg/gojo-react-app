@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SearchFilters } from '../components/Search/SearchFilters';
 import { PropertyGrid } from '../components/Properties/PropertyGrid';
 import { useProperties } from '../hooks/useProperties';
@@ -9,9 +9,16 @@ import { motion } from 'framer-motion';
 import { Sparkles, TrendingUp } from 'lucide-react';
 
 export const HomePage: React.FC = () => {
-  const { user } = useAuth();
+  const { isHost } = useAuth();
   const [filters, setFilters] = useState<PropertyFilters>({});
   const { properties, loading, error } = useProperties(filters);
+
+  // Redirect hosts to dashboard
+  useEffect(() => {
+    if (isHost) {
+      window.location.href = '/host';
+    }
+  }, [isHost]);
 
   const handleSearch = (query: string) => {
     // This would integrate with OpenAI API for natural language search
@@ -43,6 +50,11 @@ export const HomePage: React.FC = () => {
     // This would be implemented with a favorites system
     console.log('Toggle favorite:', propertyId);
   };
+
+  // Don't render for hosts
+  if (isHost) {
+    return null;
+  }
 
   return (
     <motion.div
