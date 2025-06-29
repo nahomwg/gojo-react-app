@@ -35,11 +35,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Get initial session
     const getInitialSession = async () => {
       try {
+        // Skip auth initialization if Supabase is not properly configured
+        if (!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'your_supabase_project_url') {
+          console.warn('Supabase not configured, running in demo mode');
+          if (mounted) {
+            setLoading(false);
+          }
+          return;
+        }
+
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
-          toast.error('Authentication error. Please try signing in again.');
         }
         
         if (mounted && session?.user) {
@@ -47,7 +55,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (err) {
         console.error('Session initialization error:', err);
-        toast.error('Failed to initialize authentication');
       } finally {
         if (mounted) {
           setLoading(false);
@@ -57,28 +64,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     getInitialSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        if (mounted) {
-          if (session?.user) {
-            await fetchUserProfile(session.user);
-          } else {
-            setUser(null);
+    // Listen for auth changes only if Supabase is configured
+    let subscription: any;
+    if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_URL !== 'your_supabase_project_url') {
+      const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        try {
+          if (mounted) {
+            if (session?.user) {
+              await fetchUserProfile(session.user);
+            } else {
+              setUser(null);
+            }
+            setLoading(false);
           }
-          setLoading(false);
+        } catch (err) {
+          console.error('Auth state change error:', err);
+          if (mounted) {
+            setLoading(false);
+          }
         }
-      } catch (err) {
-        console.error('Auth state change error:', err);
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    });
+      });
+      subscription = authSubscription;
+    }
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 
@@ -112,20 +123,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (createError) {
           console.error('Error creating user profile:', createError);
-          toast.error('Failed to create user profile');
           return;
         }
 
         setUser(createdUser);
       } else if (error) {
         console.error('Error fetching user profile:', error);
-        toast.error('Failed to load user profile');
       } else if (data) {
         setUser(data);
       }
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
-      toast.error('Authentication error occurred');
     }
   };
 
