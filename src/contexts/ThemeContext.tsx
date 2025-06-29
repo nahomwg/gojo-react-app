@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'light' | 'dark';
+type Theme = 'light' | 'dark' | 'system';
 
 interface ThemeContextType {
   theme: Theme;
@@ -21,27 +21,46 @@ export const useTheme = () => {
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem('theme') as Theme;
-    if (stored === 'light' || stored === 'dark') {
-      return stored;
-    }
-    // Default to system preference if no stored theme
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return stored || 'system';
   });
 
-  const [isDark, setIsDark] = useState(theme === 'dark');
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     const root = window.document.documentElement;
     
-    setIsDark(theme === 'dark');
-    root.classList.toggle('dark', theme === 'dark');
-    
-    // Store the theme preference
-    localStorage.setItem('theme', theme);
+    const updateTheme = () => {
+      if (theme === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        setIsDark(systemTheme === 'dark');
+        root.classList.toggle('dark', systemTheme === 'dark');
+      } else {
+        setIsDark(theme === 'dark');
+        root.classList.toggle('dark', theme === 'dark');
+      }
+    };
+
+    updateTheme();
+
+    // Listen for system theme changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+      if (theme === 'system') {
+        updateTheme();
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
+  const handleSetTheme = (newTheme: Theme) => {
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, isDark }}>
+    <ThemeContext.Provider value={{ theme, setTheme: handleSetTheme, isDark }}>
       {children}
     </ThemeContext.Provider>
   );

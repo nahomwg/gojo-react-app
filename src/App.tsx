@@ -61,7 +61,7 @@ function AppRoutes() {
     <Router>
       <Layout>
         <Routes>
-          {/* Home Route - Always shows HomePage, no smart redirects */}
+          {/* Home Route - Always shows HomePage */}
           <Route path="/" element={<HomePage />} />
           
           {/* Public Routes */}
