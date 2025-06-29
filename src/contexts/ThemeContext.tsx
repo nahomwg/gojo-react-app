@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'light' | 'dark';
 
 interface ThemeContextType {
   theme: Theme;
@@ -21,42 +21,27 @@ export const useTheme = () => {
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem('theme') as Theme;
-    return stored || 'system';
+    if (stored === 'light' || stored === 'dark') {
+      return stored;
+    }
+    // Default to system preference if no stored theme
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(theme === 'dark');
 
   useEffect(() => {
     const root = window.document.documentElement;
     
-    const updateTheme = () => {
-      if (theme === 'system') {
-        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        setIsDark(systemTheme === 'dark');
-        root.classList.toggle('dark', systemTheme === 'dark');
-      } else {
-        setIsDark(theme === 'dark');
-        root.classList.toggle('dark', theme === 'dark');
-      }
-    };
-
-    updateTheme();
-
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => {
-      if (theme === 'system') {
-        updateTheme();
-      }
-    };
-
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+    setIsDark(theme === 'dark');
+    root.classList.toggle('dark', theme === 'dark');
+    
+    // Store the theme preference
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
   const handleSetTheme = (newTheme: Theme) => {
     setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
   };
 
   return (
