@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
-import { MapPin, Crosshair, AlertCircle } from 'lucide-react';
+import { MapPin, Crosshair, AlertCircle, Loader2 } from 'lucide-react';
 import { LocationData } from '../../types';
 import { motion } from 'framer-motion';
 
@@ -62,6 +62,7 @@ export const MapPicker: React.FC<MapPickerProps> = ({
   );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const mapRef = useRef<google.maps.Map | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
 
@@ -73,59 +74,65 @@ export const MapPicker: React.FC<MapPickerProps> = ({
   // Initialize geocoder when map loads
   const onMapLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
-    geocoderRef.current = new window.google.maps.Geocoder();
+    if (window.google?.maps?.Geocoder) {
+      geocoderRef.current = new window.google.maps.Geocoder();
+    }
     setIsLoading(false);
   }, []);
 
   // Handle map click to select location
   const onMapClick = useCallback(async (event: google.maps.MapMouseEvent) => {
-    if (!event.latLng || !geocoderRef.current) return;
+    if (!event.latLng) return;
 
     const lat = event.latLng.lat();
     const lng = event.latLng.lng();
 
     try {
-      // Reverse geocode to get address
-      const response = await new Promise<google.maps.GeocoderResponse>((resolve, reject) => {
-        geocoderRef.current!.geocode(
-          { location: { lat, lng } },
-          (results, status) => {
-            if (status === 'OK' && results) {
-              resolve({ results } as google.maps.GeocoderResponse);
-            } else {
-              reject(new Error(`Geocoding failed: ${status}`));
-            }
-          }
-        );
-      });
+      let address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      let formattedAddress = address;
+      let placeId: string | undefined;
 
-      const result = response.results[0];
-      const address = result?.formatted_address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      // Try reverse geocoding if available
+      if (geocoderRef.current) {
+        try {
+          const response = await new Promise<google.maps.GeocoderResponse>((resolve, reject) => {
+            geocoderRef.current!.geocode(
+              { location: { lat, lng } },
+              (results, status) => {
+                if (status === 'OK' && results && results.length > 0) {
+                  resolve({ results } as google.maps.GeocoderResponse);
+                } else {
+                  reject(new Error(`Geocoding failed: ${status}`));
+                }
+              }
+            );
+          });
+
+          const result = response.results[0];
+          if (result) {
+            address = result.formatted_address || address;
+            formattedAddress = result.formatted_address || formattedAddress;
+            placeId = result.place_id;
+          }
+        } catch (geocodeError) {
+          console.warn('Geocoding failed, using coordinates:', geocodeError);
+        }
+      }
 
       const locationData: LocationData = {
         address,
         latitude: lat,
         longitude: lng,
-        placeId: result?.place_id,
-        formattedAddress: result?.formatted_address
+        placeId,
+        formattedAddress
       };
 
       setSelectedLocation(locationData);
       onLocationSelect(locationData);
       setError(null);
     } catch (err) {
-      console.error('Geocoding error:', err);
-      
-      // Still allow selection even if geocoding fails
-      const locationData: LocationData = {
-        address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
-        latitude: lat,
-        longitude: lng
-      };
-
-      setSelectedLocation(locationData);
-      onLocationSelect(locationData);
-      setError('Could not get address for this location');
+      console.error('Location selection error:', err);
+      setError('Failed to select location');
     }
   }, [onLocationSelect]);
 
@@ -136,7 +143,9 @@ export const MapPicker: React.FC<MapPickerProps> = ({
       return;
     }
 
-    setIsLoading(true);
+    setIsGettingLocation(true);
+    setError(null);
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
@@ -153,13 +162,12 @@ export const MapPicker: React.FC<MapPickerProps> = ({
         
         setSelectedLocation(locationData);
         onLocationSelect(locationData);
-        setIsLoading(false);
-        setError(null);
+        setIsGettingLocation(false);
       },
       (error) => {
         console.error('Geolocation error:', error);
         setError('Could not get your current location');
-        setIsLoading(false);
+        setIsGettingLocation(false);
       },
       {
         enableHighAccuracy: true,
@@ -224,13 +232,22 @@ export const MapPicker: React.FC<MapPickerProps> = ({
         <motion.button
           type="button"
           onClick={centerOnCurrentLocation}
-          disabled={isLoading}
+          disabled={isLoading || isGettingLocation}
           className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
         >
-          <Crosshair className="w-4 h-4" />
-          <span>Use My Location</span>
+          {isGettingLocation ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Getting Location...</span>
+            </>
+          ) : (
+            <>
+              <Crosshair className="w-4 h-4" />
+              <span>Use My Location</span>
+            </>
+          )}
         </motion.button>
       </div>
 
@@ -275,7 +292,7 @@ export const MapPicker: React.FC<MapPickerProps> = ({
         {isLoading && (
           <div className="absolute inset-0 bg-gray-100 dark:bg-gray-800 flex items-center justify-center z-10">
             <div className="flex items-center space-x-3">
-              <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+              <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
               <span className="text-gray-600 dark:text-gray-400">Loading map...</span>
             </div>
           </div>

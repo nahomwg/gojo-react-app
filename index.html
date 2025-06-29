@@ -6,6 +6,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gojo - Property Rental Platform</title>
     <meta name="description" content="Find your perfect rental property in Ethiopia with Gojo. Browse residential and business properties from trusted hosts." />
+    
+    <!-- Preconnect to external domains for better performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://maps.googleapis.com">
+    <link rel="preconnect" href="https://api.openai.com">
+    
+    <!-- Google Maps API -->
+    <script>
+      // Load Google Maps API if key is available
+      if (window.location.hostname !== 'localhost' || localStorage.getItem('VITE_GOOGLE_MAPS_API_KEY')) {
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}&libraries=places&callback=initMap`;
+        script.async = true;
+        script.defer = true;
+        
+        // Global callback for when Google Maps loads
+        window.initMap = function() {
+          console.log('Google Maps API loaded successfully');
+          window.googleMapsLoaded = true;
+          
+          // Dispatch custom event to notify components
+          window.dispatchEvent(new CustomEvent('googleMapsLoaded'));
+        };
+        
+        script.onerror = function() {
+          console.warn('Failed to load Google Maps API');
+          window.googleMapsError = true;
+        };
+        
+        document.head.appendChild(script);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

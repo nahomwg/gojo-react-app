@@ -11,6 +11,7 @@ interface PropertyGridProps {
   onFavorite?: (id: string) => void;
   favoritedProperties?: string[];
   onRetry?: () => void;
+  showLocation?: boolean;
 }
 
 export const PropertyGrid: React.FC<PropertyGridProps> = ({
@@ -19,7 +20,8 @@ export const PropertyGrid: React.FC<PropertyGridProps> = ({
   error = null,
   onFavorite,
   favoritedProperties = [],
-  onRetry
+  onRetry,
+  showLocation = false
 }) => {
   // Error state
   if (error) {
@@ -130,6 +132,7 @@ export const PropertyGrid: React.FC<PropertyGridProps> = ({
               property={property}
               onFavorite={onFavorite}
               isFavorited={favoritedProperties.includes(property.id)}
+              showLocation={showLocation}
             />
           </motion.div>
         );
