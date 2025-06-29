@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { X, MapPin, Plus } from 'lucide-react';
-import { Property } from '../../types';
+import { Property, LocationData } from '../../types';
 import { ImageUploader } from '../upload/ImageUploader';
+import { LocationPicker } from '../Maps/LocationPicker';
 import { motion } from 'framer-motion';
 
 interface PropertyFormData {
@@ -47,12 +48,21 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
   const [customFeature, setCustomFeature] = useState('');
   const [images, setImages] = useState<string[]>(property?.images || []);
   const [propertyType, setPropertyType] = useState<'residential' | 'business'>(property?.type || 'residential');
+  const [selectedLocation, setSelectedLocation] = useState<LocationData | undefined>(
+    property ? {
+      address: property.location,
+      latitude: property.latitude,
+      longitude: property.longitude,
+      formattedAddress: property.location
+    } : undefined
+  );
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     setValue,
+    watch
   } = useForm<PropertyFormData>({
     defaultValues: property ? {
       title: property.title,
@@ -69,7 +79,9 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     } : {
       type: 'residential',
       features: [],
-      business_features: []
+      business_features: [],
+      latitude: 9.005401, // Default to Addis Ababa center
+      longitude: 38.763611
     }
   });
 
@@ -100,11 +112,22 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
     }
   };
 
+  const handleLocationSelect = (location: LocationData) => {
+    setSelectedLocation(location);
+    setValue('location', location.formattedAddress || location.address);
+    setValue('latitude', location.latitude);
+    setValue('longitude', location.longitude);
+  };
+
   const onFormSubmit = async (data: PropertyFormData) => {
     const formData = {
       ...data,
       features: selectedFeatures,
-      business_features: propertyType === 'business' ? selectedBusinessFeatures : undefined
+      business_features: propertyType === 'business' ? selectedBusinessFeatures : undefined,
+      // Ensure location data is included
+      location: selectedLocation?.formattedAddress || selectedLocation?.address || data.location,
+      latitude: selectedLocation?.latitude || data.latitude,
+      longitude: selectedLocation?.longitude || data.longitude
     };
 
     await onSubmit(formData, images);
@@ -121,7 +144,7 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+        className="bg-white dark:bg-gray-800 rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
       >
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
           <div className="flex items-center justify-between">
@@ -258,41 +281,28 @@ export const PropertyForm: React.FC<PropertyFormProps> = ({
             </div>
           </div>
 
-          {/* Location */}
+          {/* Location Section */}
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Location</h3>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Address
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
-                <input
-                  {...register('location', { required: 'Location is required' })}
-                  type="text"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder="Enter property location"
-                />
-              </div>
-              {errors.location && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.location.message}</p>
-              )}
-            </div>
+            <LocationPicker
+              onLocationSelect={handleLocationSelect}
+              initialLocation={selectedLocation}
+            />
 
-            {/* Hidden coordinates - would integrate with Google Maps */}
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                {...register('latitude', { required: true })}
-                type="hidden"
-                defaultValue={property?.latitude || 9.005401} // Default to Addis Ababa
-              />
-              <input
-                {...register('longitude', { required: true })}
-                type="hidden"
-                defaultValue={property?.longitude || 38.763611}
-              />
-            </div>
+            {/* Hidden form fields for coordinates */}
+            <input
+              {...register('latitude', { required: true })}
+              type="hidden"
+            />
+            <input
+              {...register('longitude', { required: true })}
+              type="hidden"
+            />
+            <input
+              {...register('location', { required: 'Location is required' })}
+              type="hidden"
+            />
           </div>
 
           {/* Features */}

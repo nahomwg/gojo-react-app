@@ -69,3 +69,27 @@ export interface Notification {
   is_read: boolean;
   created_at: string;
 }
+
+// Google Maps related interfaces
+export interface LocationData {
+  address: string;
+  latitude: number;
+  longitude: number;
+  placeId?: string;
+  formattedAddress?: string;
+}
+
+export interface MapPickerProps {
+  onLocationSelect: (location: LocationData) => void;
+  initialLocation?: LocationData;
+  height?: string;
+  className?: string;
+}
+
+export interface AddressSearchProps {
+  onPlaceSelect: (location: LocationData) => void;
+  placeholder?: string;
+  className?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+}

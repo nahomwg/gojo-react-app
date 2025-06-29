@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, Bed, Square, Star, Heart, Wifi, Car, Shield, Eye, Calendar } from 'lucide-react';
+import { MapPin, Bed, Square, Star, Heart, Wifi, Car, Shield, Eye, Calendar, Navigation } from 'lucide-react';
 import { Property } from '../../types';
 import { motion } from 'framer-motion';
 
@@ -7,17 +7,28 @@ interface PropertyCardProps {
   property: Property;
   onFavorite?: (id: string) => void;
   isFavorited?: boolean;
+  showLocation?: boolean;
 }
 
 export const PropertyCard: React.FC<PropertyCardProps> = ({ 
   property, 
   onFavorite, 
-  isFavorited = false 
+  isFavorited = false,
+  showLocation = false
 }) => {
   const handleFavorite = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onFavorite?.(property.id);
+  };
+
+  const handleViewOnMap = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Open Google Maps with the property location
+    const mapsUrl = `https://www.google.com/maps?q=${property.latitude},${property.longitude}`;
+    window.open(mapsUrl, '_blank');
   };
 
   const formatPrice = (price: number) => {
@@ -79,20 +90,34 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
             {property.type === 'residential' ? 'Residential' : 'Business'}
           </span>
 
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={handleFavorite}
-            className="w-10 h-10 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:bg-white dark:hover:bg-gray-800 transition-all duration-200 border border-white/20"
-          >
-            <Heart 
-              className={`w-5 h-5 transition-colors ${
-                isFavorited 
-                  ? 'fill-red-500 text-red-500' 
-                  : 'text-gray-600 dark:text-gray-400 hover:text-red-500'
-              }`}
-            />
-          </motion.button>
+          <div className="flex items-center space-x-2">
+            {/* View on Map Button */}
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handleViewOnMap}
+              className="w-10 h-10 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:bg-white dark:hover:bg-gray-800 transition-all duration-200 border border-white/20"
+              title="View on map"
+            >
+              <Navigation className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+            </motion.button>
+
+            {/* Favorite Button */}
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handleFavorite}
+              className="w-10 h-10 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:bg-white dark:hover:bg-gray-800 transition-all duration-200 border border-white/20"
+            >
+              <Heart 
+                className={`w-5 h-5 transition-colors ${
+                  isFavorited 
+                    ? 'fill-red-500 text-red-500' 
+                    : 'text-gray-600 dark:text-gray-400 hover:text-red-500'
+                }`}
+              />
+            </motion.button>
+          </div>
         </div>
 
         {/* Bottom Row - Image Count & Views */}
@@ -138,6 +163,13 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
             <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
             <span className="line-clamp-1">{property.location}, Addis Ababa</span>
           </div>
+          
+          {/* Coordinates display for development/debugging */}
+          {showLocation && (
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {property.latitude.toFixed(4)}, {property.longitude.toFixed(4)}
+            </div>
+          )}
         </div>
 
         {/* Property Details */}
